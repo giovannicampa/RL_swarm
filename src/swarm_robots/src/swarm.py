@@ -1,23 +1,24 @@
-#!/usr/bin/env python
+#!/usr/bin/env python3
 
 import rospy
-import matplotlib.pyplot as plt
+# import matplotlib.pyplot as plt
 import numpy as np
 import random
 from visualization_msgs.msg import Marker
 from visualization_msgs.msg import MarkerArray
 import gym
 from gym import spaces
+import sys
+sys.path.insert(1, '/home/giovanni/ROS_workspaces/RL_swarm/src/swarm_robots/src/envs')
+from particle_env import ParticleEnv
 
-from gym.envs.swarm_robotics import Particle
+from stable_baselines import PPO2
+from stable_baselines.common.policies import MlpPolicy
+
+
 
 
 pub = rospy.Publisher('particles_markers', MarkerArray, queue_size=10)
-rospy.init_node('swarm_node', anonymous=True)
-
-
-
-
 
 
 # Calculating distance between two particles
@@ -25,18 +26,7 @@ def distance_particles(p1, p2):
     return np.sqrt((p1.x - p2.x)**2 + (p1.y - p2.y)**2)
 
 
-
-# Generate particles
-particle_list = []
-
-for i in range(200):
-
-    p = Particle(random.randint(-250,250),random.randint(-250,250), 0, 1, np.inf, np.inf, i)
-    particle_list.append(p)
-
-
-
-def movement():
+def update_world(particle_list):
     
 
     while not rospy.is_shutdown():
@@ -92,7 +82,7 @@ def movement():
             markerArray.markers.append(marker)
 
 
-        print(markerArray.markers[1].pose.position.x)
+        # print(markerArray.markers[1].pose.position.x)
 
 
         pub.publish(markerArray)
@@ -101,6 +91,51 @@ def movement():
 
 
 
-if __name__ == "__main__":
+if __name__ == '__main__':
 
-    movement()
+
+    # Generate particles
+    particle_list = []
+    for i in range(200):
+
+        p = ParticleEnv()
+
+        particle_list.append(p)
+
+
+
+    rospy.init_node('swarm_node', anonymous=True)
+    env = gym.make('Particle-v0')
+
+    nsteps = 300
+    nepisodes = 1000
+
+    model = PPO2(MlpPolicy, env, verbose=1)
+
+    # Starts the main training loop: the one about the episodes to do
+    for x in range(nepisodes):
+
+        done = False
+
+        # Now We return directly the stringuified observations called state
+        observation = env.reset()
+
+
+        # for each episode, we test the robot for nsteps
+        for _ in range(nsteps):
+
+            update_world(particle_list)
+
+            action, states = model.predict(observation)
+
+            observation, reward, done, info = env.step(action)            
+
+            if not (done):
+                print("not done")
+            else:
+                rospy.logdebug("DONE")
+                break
+
+
+
+
