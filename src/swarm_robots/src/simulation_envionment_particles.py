@@ -3,6 +3,7 @@
 # In this script we generate the environment of "stupid" particles, that the agent will interact with
 
 import rospy
+from geometry_msgs.msg import PoseArray, PoseStamped
 import numpy as np
 import random
 from visualization_msgs.msg import Marker
@@ -18,7 +19,8 @@ from stable_baselines.common.policies import MlpPolicy
 
 
 
-pub = rospy.Publisher('particles_markers', MarkerArray, queue_size=10)
+pub_marker = rospy.Publisher('particles_markers', MarkerArray, queue_size=10)
+pub_poses = rospy.Publisher('particles_positions', PoseArray, queue_size=10)
 
 
 # Calculating distance between two particles
@@ -32,6 +34,8 @@ def update_world(particle_list):
     while not rospy.is_shutdown():
 
         markerArray = MarkerArray()
+        poseArray = PoseArray()
+
 
         # Updating all the particles
         for p in particle_list:
@@ -55,6 +59,7 @@ def update_world(particle_list):
 
 
             marker = Marker()
+            point = PoseStamped()
             marker.header.frame_id = "world"
             marker.id = p.id
             marker.type = marker.SPHERE
@@ -77,14 +82,23 @@ def update_world(particle_list):
             marker.pose.position.x = float(p.x)
             marker.pose.position.y = float(p.y)
             marker.pose.position.z = 0
+            
+            point.header = marker.header
+            point.pose.position.x = marker.pose.position.x
+            point.pose.position.y = marker.pose.position.y
+            point.pose.position.z = marker.pose.position.z
+
+            point.pose.orientation = marker.pose.orientation
 
             markerArray.markers.append(marker)
-
+            poseArray.poses.append(point)
 
         # print(markerArray.markers[1].pose.position.x)
 
 
-        pub.publish(markerArray)
+        pub_marker.publish(markerArray)
+        pub_poses.publish(poseArray)
+
         rospy.sleep(0.01)
 
 
@@ -101,6 +115,6 @@ for i in range(50):
 
 # for each episode, we test the robot for nsteps
 while True:
-
+    rospy.init_node('swarm_node', anonymous=True)
     update_world(particle_list)
 
