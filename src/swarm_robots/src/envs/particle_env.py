@@ -144,6 +144,7 @@ class ParticleEnvRL(ParticleEnv):
                                             high=np.array([ self.len_half, self.len_half, 1, +np.pi, 2*self.len_half, 2*self.len_half]))
         self.action_space = spaces.Box(low= np.array([-np.pi/10,-1]),
                                        high=np.array([ np.pi/10, 1]))
+        self.reward = 0
 
 
     def calculate_reward(self):
@@ -197,7 +198,7 @@ class ParticleEnvRL(ParticleEnv):
         4. Calculate reward
         """
 
-        print(action)
+        # print(action)
         self.steps += 1
 
         self.publish_position()
@@ -221,7 +222,7 @@ class ParticleEnvRL(ParticleEnv):
 
         observation = self.get_observation()
 
-        reward = self.calculate_reward()
+        self.reward = self.calculate_reward()
 
         done = self.is_done()
 
@@ -229,7 +230,7 @@ class ParticleEnvRL(ParticleEnv):
 
         rospy.sleep(0.01)
 
-        return observation, reward, done, information
+        return observation, self.reward, done, information
 
 
     def update_distances_to_particles(self, msg):

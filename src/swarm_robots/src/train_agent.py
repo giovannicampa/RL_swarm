@@ -12,7 +12,7 @@ import gym
 from gym import spaces
 
 from stable_baselines3 import DDPG
-from stable_baselines3.ddpg.policies import MlpPolicy
+from stable_baselines3.td3.policies import MlpPolicy
 
 # import rospkg
 # rospack = rospkg.RosPack()
@@ -24,8 +24,28 @@ from stable_baselines3.ddpg.policies import MlpPolicy
 # package_path = rospack.get_path('swarm_robots')
 
 
+from stable_baselines3.common.callbacks import BaseCallback
+
 sys.path.insert(1, '/home/giovanni/ROS_workspaces/RL_swarm/src/swarm_robots/src/envs')
 from particle_env import ParticleEnvRL
+
+
+class TensorboardCallback(BaseCallback):
+    """
+    Custom callback for plotting rewards
+    """
+
+    def __init__(self, env):
+        verbose = 0
+        super(TensorboardCallback, self).__init__(verbose)
+        self.env = env
+
+    def _on_step(self) -> bool:
+        # Log scalar value (here a random variable)
+        reward = self.env.reward
+        self.logger.record('reward', reward)
+        return True
+
 
 
 
@@ -34,6 +54,8 @@ if __name__ == '__main__':
 
     rospy.init_node('swarm_node', anonymous=True)
     env = gym.make('Particle-v0')
+
+    reward_callback=TensorboardCallback(env = env)
 
     # grid_search_params = {  "gamma": [0.99, 0.97, 0.95],
     #                         "lr": [0.001, 0.0001],
@@ -54,5 +76,5 @@ if __name__ == '__main__':
                 gamma=0.99)
 
 
-    model.learn(total_timesteps=100000)
+    model.learn(total_timesteps=100000, callback = reward_callback)
     model.save("/home/giovanni/ROS_workspaces/RL_swarm/src/swarm_robots/src/models")
