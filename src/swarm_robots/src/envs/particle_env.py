@@ -39,14 +39,7 @@ class ParticleEnv(gym.Env):
         self.collision_path = False                             # Whether a particle is in collision with another one
         self.particle_id = particle_id #random.randint(1,1000)                        # Particle Id
 
-        self.n_steps = 300                                      # Nr training steps per episode
-        self.steps = 0                                          # Current amount of steps
 
-        # Modifying the attributes inherited from the gym.Env class [x, y, vel, phi, closest_particles_x, closest_particles_y]
-        self.observation_space = spaces.Box(low= np.array([-self.len_half,-self.len_half, 0, -np.pi, 0, 0]),
-                                            high=np.array([ self.len_half, self.len_half, 2, +np.pi, self.len_half*2, self.len_half*2]))
-        self.action_space = spaces.Box(low= np.array([-np.pi/10,-0.2]),
-                                       high=np.array([ np.pi/10, 0.2]))
 
 
 
@@ -143,6 +136,14 @@ class ParticleEnvRL(ParticleEnv):
         self.pub_marker = rospy.Publisher('particle_learning_marker', Marker, queue_size=10)
         self.pub_marker_velocity = rospy.Publisher('particle_learning_velocity', Marker, queue_size=10)
 
+        self.n_steps = 300                                      # Nr training steps per episode
+        self.steps = 0                                          # Current amount of steps
+
+        # Modifying the attributes inherited from the gym.Env class [x, y, vel, phi, closest_particles_x, closest_particles_y]
+        self.observation_space = spaces.Box(low= np.array([-self.len_half,-self.len_half,-1, -np.pi,-2*self.len_half,-2*self.len_half]),
+                                            high=np.array([ self.len_half, self.len_half, 1, +np.pi, 2*self.len_half, 2*self.len_half]))
+        self.action_space = spaces.Box(low= np.array([-np.pi/10,-1]),
+                                       high=np.array([ np.pi/10, 1]))
 
 
     def calculate_reward(self):
@@ -161,10 +162,10 @@ class ParticleEnvRL(ParticleEnv):
         self.y = random.uniform(-self.len_half, self.len_half)
         self.phi = 0.01
         self.vel = 1
-        self.closest_particles_x = np.inf
-        self.closest_particles_y = np.inf
-        self.dist_2_closest = np.sqrt((self.x - self.closest_particles_x)**2 + (self.y - self.closest_particles_y)**2)
+        # self.update_distances_to_particles()
         self.collision_path = False
+
+        return self.get_observation()
 
 
     def is_done(self):
@@ -182,8 +183,8 @@ class ParticleEnvRL(ParticleEnv):
     def get_observation(self):
         """ Return the current state of the particle
         """
-        
-        return [self.x,self.y, self.vel, self.phi, self.closest_particles_x, self.closest_particles_y]
+
+        return [self.x, self.y, self.vel, self.phi, self.closest_particles_x, self.closest_particles_y]
 
 
     # Update function
@@ -195,6 +196,8 @@ class ParticleEnvRL(ParticleEnv):
         3. Get observation of current state
         4. Calculate reward
         """
+
+        print(action)
         self.steps += 1
 
         self.publish_position()
@@ -204,6 +207,14 @@ class ParticleEnvRL(ParticleEnv):
 
         self.phi = self.phi + action[0]
         self.vel = action[1]
+        
+        # Bringing the angles in the right range
+        if(self.phi < -np.pi):
+            self.phi = self.phi + 2*np.pi
+        
+        if(self.phi > np.pi):
+            self.phi = self.phi - 2*np.pi
+
 
         self.x = self.x + self.vel*np.cos(self.phi)
         self.y = self.y + self.vel*np.sin(self.phi)
@@ -216,7 +227,7 @@ class ParticleEnvRL(ParticleEnv):
 
         information = {"Finished":done}
 
-        rospy.sleep(0.1)
+        rospy.sleep(0.01)
 
         return observation, reward, done, information
 
