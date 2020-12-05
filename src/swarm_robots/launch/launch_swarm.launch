@@ -1,11 +1,9 @@
 <launch>
 
 
-
-    <node name="swarm" type="swarm.py" pkg="swarm_robots" output="screen"/>
+    <node name="swarm" type="simulation_envionment_particles.py" pkg="swarm_robots" output="screen"/>
 
     <node type="rviz" name="rviz" pkg="rviz" args="-d $(find swarm_robots)/rviz/swarm.rviz" />
-
 
 
 </launch>
