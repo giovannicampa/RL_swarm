@@ -114,19 +114,8 @@ def update_world():
             velocity_marker.pose.orientation.w = quat[3]
             velocity_marker_array.markers.append(velocity_marker)
 
-
-
             # Pose array
-            point = PoseStamped()
-            point.header = marker.header
-            point.pose.position.x = float(p.x)
-            point.pose.position.y = float(p.y)
-            point.pose.position.z = 0
-            point.pose.orientation.x = quat[0]
-            point.pose.orientation.y = quat[1]
-            point.pose.orientation.z = quat[2]
-            point.pose.orientation.w = quat[3]
-            pose_array.poses.append(point.pose)
+            pose_array.poses.append(marker.pose)
 
 
         pub_marker.publish(marker_array)
