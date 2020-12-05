@@ -20,11 +20,11 @@ pub_marker_velocity = rospy.Publisher('particles_velocity', MarkerArray, queue_s
 pub_poses = rospy.Publisher('particles_positions', PoseArray, queue_size=10)
 
 
-# Generate particles
+# Generate dumb particles
 particle_list = []
 for i in range(50):
 
-    p = ParticleEnv()
+    p = ParticleEnv(particle_id = i)
 
     particle_list.append(p)
 
@@ -67,7 +67,7 @@ def update_world():
             # Position marker
             marker = Marker()
             marker.header.frame_id = "world"
-            marker.id = p.id
+            marker.id = p.particle_id
             marker.type = marker.SPHERE
             marker.action = marker.ADD
             marker.scale.x = 4
@@ -94,7 +94,7 @@ def update_world():
             # Velocity marker
             velocity_marker = Marker()
             velocity_marker.header.frame_id = "world"
-            velocity_marker.id = p.id
+            velocity_marker.id = p.particle_id
             velocity_marker.type = marker.ARROW
             velocity_marker.action = marker.ADD
             velocity_marker.scale.x = p.vel*10
@@ -123,8 +123,6 @@ def update_world():
         pub_poses.publish(pose_array)
 
         rospy.sleep(0.01)
-
-
 
 
 # for each episode, we test the robot for nsteps
