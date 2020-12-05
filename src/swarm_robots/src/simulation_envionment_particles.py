@@ -122,11 +122,10 @@ def update_world():
         pub_marker_velocity.publish(velocity_marker_array)
         pub_poses.publish(pose_array)
 
-        rospy.sleep(0.01)
 
 
 # for each episode, we test the robot for nsteps
 while True:
     rospy.init_node('swarm_node', anonymous=True)
     update_world()
-
+    rospy.sleep(0.01)
