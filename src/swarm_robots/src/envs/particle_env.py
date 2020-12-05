@@ -3,26 +3,29 @@ from gym import spaces
 import numpy as np
 import random
 
+from geometry_msgs.msg import PoseArray
+import rospy
+from visualization_msgs.msg import Marker
+from scipy.spatial.transform import Rotation
+
 from gym.envs.registration import register
  
-register(
-    id='Particle-v0', 
-    entry_point='particle_env:ParticleEnv',
-)
-
 
 
 class ParticleEnv(gym.Env):
+    """ Particle class
+    
+    It contains all attributes of a moving particle. Its motion is defined by a white box model
+    """
 
-
-    def __init__(self):
+    def __init__(self, particle_id = 999):
         
         super(ParticleEnv, self).__init__()
 
         # Motion parameters
         self.security_angle = 45*np.pi/180   # If abs(self.ang_dist_2_closest) is below this value, the particle changes direction
         self.security_distance = 10          # At this distance to the next particle, 
-        self.len_half = 200                  # Border along x of the area where the particles can move
+        self.len_half = 200                  # Half length of the square inside which the particles are move
 
 
         # Own attributes of the Particle class
@@ -32,12 +35,10 @@ class ParticleEnv(gym.Env):
         self.vel = 1                                            # Velocity along the heading angle
         self.closest_particles_x = np.inf                       # Distance to closest particle along x
         self.closest_particles_y = np.inf                       # Distance to closest particle along y
-        self.dist_2_closest = np.sqrt(
-            (self.x - self.closest_particles_x)**2 +\
-            (self.y - self.closest_particles_y)**2)             # Distance to the closest particle
+        self.dist_2_closest = np.inf                            # Distance to the closest particle
         self.collision_path = False                             # Whether a particle is in collision with another one
-        self.id = random.randint(1,1000)                        # Particle Id
-        self.n_episodes = 1000                                  # Nr training episodes
+        self.particle_id = particle_id #random.randint(1,1000)                        # Particle Id
+
         self.n_steps = 300                                      # Nr training steps per episode
         self.steps = 0                                          # Current amount of steps
 
@@ -47,31 +48,6 @@ class ParticleEnv(gym.Env):
         self.action_space = spaces.Box(low= np.array([-np.pi/10,-0.2]),
                                        high=np.array([ np.pi/10, 0.2]))
 
-
-    # Update function
-    def step(self, action):
-        """ Step function required by the rl environment
-        
-        1. Gets action in desired range
-        2. Apply action that modifies state
-        3. Get observation of current state
-        4. Calculate reward
-        """
-
-        action = np.clip(action, self.action_space.low, self.action_space.high)
-
-        self.phi = self.phi + action[0]
-        self.vel = self.vel + action[1]
-
-        observation = self.get_observation()
-
-        reward = self.calculate_reward()
-
-        done = self.is_done()
-
-        information = []
-
-        return observation, reward, done, information
 
 
     def calc_ang_dist_2_closest(self):
@@ -106,7 +82,7 @@ class ParticleEnv(gym.Env):
 
 
         angle_2_particle = np.arctan2(self.y, self.x)
-        self.distance_from_origin = np.sqrt(self.x**2 + self.y**2) # Distance from the particle to (0,0)
+        self.calculate_distance_from_origin()
 
 
         # Radius of a circle with centre in (0,0) that inscribes the square with length self.len_half
@@ -136,16 +112,51 @@ class ParticleEnv(gym.Env):
         self.y = self.y + np.sin(self.phi)*self.vel
     
 
+    def calculate_distance_from_origin(self):
+
+        self.distance_from_origin = np.sqrt(self.x**2 + self.y**2) # Distance from the particle to (0,0)
+
+
+
+# ---------------------------------------------------------------------------------------------------------
+
+# Needed to interface with the gym environment
+register(
+    id='Particle-v0', 
+    entry_point='particle_env:ParticleEnvRL',
+)
+
+
+class ParticleEnvRL(ParticleEnv):
+    """ Class of the RL particle
+    
+    It is used to train the RL algorithm
+    """
+
+
+    def __init__(self):
+
+        super(ParticleEnvRL, self).__init__()
+        
+        self.subscriber = rospy.Subscriber("/particles_positions", PoseArray, self.update_distances_to_particles)
+    
+        self.pub_marker = rospy.Publisher('particle_learning_marker', Marker, queue_size=10)
+        self.pub_marker_velocity = rospy.Publisher('particle_learning_velocity', Marker, queue_size=10)
+
+
+
     def calculate_reward(self):
         """ Calculate reward for the current particle
         """
+        self.calculate_distance_from_origin()
+
         return 1/self.dist_2_closest + 1/self.distance_from_origin
 
 
     def reset(self):
         """ Reset the states of the particle
         """
-
+        self.steps = 0
         self.x = random.uniform(-self.len_half, self.len_half)
         self.y = random.uniform(-self.len_half, self.len_half)
         self.phi = 0.01
@@ -173,3 +184,114 @@ class ParticleEnv(gym.Env):
         """
         
         return [self.x,self.y, self.vel, self.phi, self.closest_particles_x, self.closest_particles_y]
+
+
+    # Update function
+    def step(self, action):
+        """ Step function required by the rl environment
+        
+        1. Gets action in desired range
+        2. Apply action that modifies state
+        3. Get observation of current state
+        4. Calculate reward
+        """
+        self.steps += 1
+
+        self.publish_position()
+
+
+        action = np.clip(action, self.action_space.low, self.action_space.high)
+
+        self.phi = self.phi + action[0]
+        self.vel = action[1]
+
+        self.x = self.x + self.vel*np.cos(self.phi)
+        self.y = self.y + self.vel*np.sin(self.phi)
+
+        observation = self.get_observation()
+
+        reward = self.calculate_reward()
+
+        done = self.is_done()
+
+        information = {"Finished":done}
+
+        rospy.sleep(0.1)
+
+        return observation, reward, done, information
+
+
+    def update_distances_to_particles(self, msg):
+        """ Calculates distance to closest particle
+
+        Iterates over all particles and finds the closest one to the current particle
+        """
+        distance = np.inf
+
+        for particle in msg.poses:
+
+            distance_2_particle = np.linalg.norm(np.array([particle.position.x - self.x, particle.position.y - self.y]))
+            
+            if distance_2_particle < distance:
+                distance = distance_2_particle
+                self.closest_particles_x = particle.position.x
+                self.closest_particles_y = particle.position.y
+
+        self.dist_2_closest = distance
+
+
+    def publish_position(self):
+        """ Publishes the marker for position and heading orientation of the particle
+        """
+
+        # Position marker
+        marker = Marker()
+        marker.header.frame_id = "world"
+        marker.id = 999
+        marker.type = marker.SPHERE
+        marker.action = marker.ADD
+        marker.scale.x = 4
+        marker.scale.y = 4
+        marker.scale.z = 4
+        marker.color.a = 1.0
+
+        if(self.collision_path == False):
+            marker.color.r = 0.0
+            marker.color.g = 0.0
+            marker.color.b = 1.0
+        else:
+            marker.color.r = 1.0
+            marker.color.g = 0.0
+            marker.color.b = 1.0
+
+        marker.pose.orientation.w = 1.0
+        marker.pose.position.x = float(self.x)
+        marker.pose.position.y = float(self.y)
+        marker.pose.position.z = 0
+        
+
+        # Velocity marker
+        velocity_marker = Marker()
+        velocity_marker.header.frame_id = "world"
+        velocity_marker.id = 999
+        velocity_marker.type = marker.ARROW
+        velocity_marker.action = marker.ADD
+        velocity_marker.scale.x = self.vel*10
+        velocity_marker.scale.y = 1
+        velocity_marker.scale.z = 1
+        velocity_marker.color.a = 1.0
+        velocity_marker.color.r = 1.0
+        velocity_marker.color.g = 0.0
+        velocity_marker.color.b = 0.0
+
+        velocity_marker.pose.position = marker.pose.position
+
+        quat = Rotation.from_euler("z", self.phi, degrees=False).as_quat()
+        velocity_marker.pose.orientation.x = quat[0]
+        velocity_marker.pose.orientation.y = quat[1]
+        velocity_marker.pose.orientation.z = quat[2]
+        velocity_marker.pose.orientation.w = quat[3]
+
+
+        self.pub_marker.publish(marker)
+        self.pub_marker_velocity.publish(velocity_marker)
