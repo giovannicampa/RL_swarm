@@ -3,6 +3,8 @@
 
     <node name="swarm" type="simulation_envionment_particles.py" pkg="swarm_robots" output="screen"/>
 
+    <node name="training" type="train_agent.py" pkg="swarm_robots" output="screen"/>
+
     <node type="rviz" name="rviz" pkg="rviz" args="-d $(find swarm_robots)/rviz/swarm.rviz" />
 
 
