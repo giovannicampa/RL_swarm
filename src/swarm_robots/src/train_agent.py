@@ -14,6 +14,8 @@ from gym import spaces
 from stable_baselines3 import DDPG
 from stable_baselines3.td3.policies import MlpPolicy
 
+from stable_baselines3.common.noise import OrnsteinUhlenbeckActionNoise
+
 # import rospkg
 # rospack = rospkg.RosPack()
 
@@ -42,8 +44,9 @@ class TensorboardCallback(BaseCallback):
 
     def _on_step(self) -> bool:
         # Log scalar value (here a random variable)
-        reward = self.env.reward
-        self.logger.record('reward', reward)
+        self.logger.record('reward', self.env.reward)
+        self.logger.record('reward dist 2 goal', self.env.reward_distance_2_goal)
+        self.logger.record('reward dist 2 particle', self.env.punishment_distance_2_particle)
         return True
 
 
@@ -68,11 +71,16 @@ if __name__ == '__main__':
     #     actor_lr_i = hyperparameter["lr"]
     #     critic_lr_i = hyperparameter["network"]
 
+    n_actions = env.action_space.shape[-1]
+    action_noise = OrnsteinUhlenbeckActionNoise(mean=np.zeros(n_actions), sigma=float(0.5) * np.ones(n_actions))
+
     model = DDPG(policy = 'MlpPolicy',
                 env = env,
                 verbose=1,
                 tensorboard_log= "/home/giovanni/ROS_workspaces/RL_swarm/src/swarm_robots/src/tensorboard/",
-                learning_rate = 0.0001,
+                learning_rate = 0.001,
+                seed=1,
+                action_noise= action_noise,
                 gamma=0.99)
 
 
