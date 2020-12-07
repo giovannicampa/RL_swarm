@@ -30,7 +30,7 @@ class ParticleEnv(gym.Env):
 
         # Own attributes of the Particle class
         self.x = random.randint(-self.len_half, self.len_half)  # Position x
-        self.y = random.randint(-self.len_half, self.len_half)  # Position x
+        self.y = random.randint(-self.len_half, self.len_half)  # Position y
         self.phi = 0                                            # Heading angle
         self.vel = 1                                            # Velocity along the heading angle
         self.closest_particles_x = np.inf                       # Distance to closest particle along x
@@ -38,7 +38,8 @@ class ParticleEnv(gym.Env):
         self.dist_2_closest = np.inf                            # Distance to the closest particle
         self.collision_path = False                             # Whether a particle is in collision with another one
         self.particle_id = particle_id #random.randint(1,1000)                        # Particle Id
-
+        self.goal_x = random.randint(-self.len_half, self.len_half)  # Position goal x
+        self.goal_y = random.randint(-self.len_half, self.len_half)  # Position goal y
 
 
 
@@ -133,8 +134,9 @@ class ParticleEnvRL(ParticleEnv):
         
         self.subscriber = rospy.Subscriber("/particles_positions", PoseArray, self.update_distances_to_particles)
     
-        self.pub_marker = rospy.Publisher('particle_learning_marker', Marker, queue_size=10)
+        self.pub_marker_position = rospy.Publisher('particle_learning_marker', Marker, queue_size=10)
         self.pub_marker_velocity = rospy.Publisher('particle_learning_velocity', Marker, queue_size=10)
+        self.pub_marker_goal = rospy.Publisher("goal", Marker, queue_size=1)
 
         self.n_steps = 300                                      # Nr training steps per episode
         self.steps = 0                                          # Current amount of steps
@@ -152,7 +154,9 @@ class ParticleEnvRL(ParticleEnv):
         """
         self.calculate_distance_from_origin()
 
-        return 1/self.dist_2_closest + 1/self.distance_from_origin
+        self.reward_distance_2_particle = 1/self.dist_2_closest
+        self.reward_distance_2_origin = 1/self.distance_from_origin
+        return self.reward_distance_2_origin + self.reward_distance_2_particle
 
 
     def reset(self):
@@ -161,10 +165,11 @@ class ParticleEnvRL(ParticleEnv):
         self.steps = 0
         self.x = random.uniform(-self.len_half, self.len_half)
         self.y = random.uniform(-self.len_half, self.len_half)
-        self.phi = 0.01
+        self.phi = 0
         self.vel = 1
         # self.update_distances_to_particles()
         self.collision_path = False
+        self.generate_goal()
 
         return self.get_observation()
 
@@ -228,7 +233,7 @@ class ParticleEnvRL(ParticleEnv):
 
         information = {"Finished":done}
 
-        rospy.sleep(0.01)
+        # rospy.sleep(0.01)
 
         return observation, self.reward, done, information
 
@@ -257,53 +262,85 @@ class ParticleEnvRL(ParticleEnv):
         """
 
         # Position marker
-        marker = Marker()
-        marker.header.frame_id = "world"
-        marker.id = 999
-        marker.type = marker.SPHERE
-        marker.action = marker.ADD
-        marker.scale.x = 4
-        marker.scale.y = 4
-        marker.scale.z = 4
-        marker.color.a = 1.0
+        marker_position = Marker()
+        marker_position.header.frame_id = "world"
+        marker_position.id = 999
+        marker_position.type = marker_position.SPHERE
+        marker_position.action = marker_position.ADD
+        marker_position.scale.x = 4
+        marker_position.scale.y = 4
+        marker_position.scale.z = 4
+        marker_position.color.a = 1.0
 
         if(self.collision_path == False):
-            marker.color.r = 0.0
-            marker.color.g = 0.0
-            marker.color.b = 1.0
+            marker_position.color.r = 0.0
+            marker_position.color.g = 0.0
+            marker_position.color.b = 1.0
         else:
-            marker.color.r = 1.0
-            marker.color.g = 0.0
-            marker.color.b = 1.0
+            marker_position.color.r = 1.0
+            marker_position.color.g = 0.0
+            marker_position.color.b = 1.0
 
-        marker.pose.orientation.w = 1.0
-        marker.pose.position.x = float(self.x)
-        marker.pose.position.y = float(self.y)
-        marker.pose.position.z = 0
+        marker_position.pose.orientation.w = 1.0
+        marker_position.pose.position.x = float(self.x)
+        marker_position.pose.position.y = float(self.y)
+        marker_position.pose.position.z = 0
         
 
         # Velocity marker
-        velocity_marker = Marker()
-        velocity_marker.header.frame_id = "world"
-        velocity_marker.id = 999
-        velocity_marker.type = marker.ARROW
-        velocity_marker.action = marker.ADD
-        velocity_marker.scale.x = self.vel*10
-        velocity_marker.scale.y = 1
-        velocity_marker.scale.z = 1
-        velocity_marker.color.a = 1.0
-        velocity_marker.color.r = 1.0
-        velocity_marker.color.g = 0.0
-        velocity_marker.color.b = 0.0
+        marker_velocity = Marker()
+        marker_velocity.header.frame_id = "world"
+        marker_velocity.id = 999
+        marker_velocity.type = marker_velocity.ARROW
+        marker_velocity.action = marker_velocity.ADD
+        marker_velocity.scale.x = self.vel*10
+        marker_velocity.scale.y = 1
+        marker_velocity.scale.z = 1
+        marker_velocity.color.a = 1.0
+        marker_velocity.color.r = 1.0
+        marker_velocity.color.g = 0.0
+        marker_velocity.color.b = 0.0
 
-        velocity_marker.pose.position = marker.pose.position
+        marker_velocity.pose.position = marker_position.pose.position
 
         quat = Rotation.from_euler("z", self.phi, degrees=False).as_quat()
-        velocity_marker.pose.orientation.x = quat[0]
-        velocity_marker.pose.orientation.y = quat[1]
-        velocity_marker.pose.orientation.z = quat[2]
-        velocity_marker.pose.orientation.w = quat[3]
+        marker_velocity.pose.orientation.x = quat[0]
+        marker_velocity.pose.orientation.y = quat[1]
+        marker_velocity.pose.orientation.z = quat[2]
+        marker_velocity.pose.orientation.w = quat[3]
 
 
-        self.pub_marker.publish(marker)
-        self.pub_marker_velocity.publish(velocity_marker)
+        self.pub_marker_position.publish(marker_position)
+        self.pub_marker_velocity.publish(marker_velocity)
+
+
+    def generate_goal(self):
+        """ Generate a goal for the particle to go to
+        """
+        self.goal_x = random.randint(-self.len_half, self.len_half)  # Position goal x
+        self.goal_y = random.randint(-self.len_half, self.len_half)  # Position goal y
+
+
+        # Velocity marker
+        marker_goal = Marker()
+        marker_goal.header.frame_id = "world"
+        marker_goal.id = 999
+        marker_goal.type = marker_goal.SPHERE
+        marker_goal.action = marker_goal.ADD
+        marker_goal.scale.x = 10
+        marker_goal.scale.y = 10
+        marker_goal.scale.z = 10
+        marker_goal.color.a = 1.0
+        marker_goal.color.r = 1.0
+        marker_goal.color.g = 0.0
+        marker_goal.color.b = 1.0
+        marker_goal.pose.position.x = self.goal_x
+        marker_goal.pose.position.y = self.goal_y
+        marker_goal.pose.position.z = 0
+        marker_goal.pose.orientation.x = 0
+        marker_goal.pose.orientation.y = 0
+        marker_goal.pose.orientation.z = 0
+        marker_goal.pose.orientation.w = 1
+
+
+        self..publish(marker_goal)
