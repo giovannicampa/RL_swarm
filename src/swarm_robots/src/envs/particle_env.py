@@ -136,14 +136,14 @@ class ParticleEnvRL(ParticleEnv):
     
         self.pub_marker_position = rospy.Publisher('particle_learning_marker', Marker, queue_size=10)
         self.pub_marker_velocity = rospy.Publisher('particle_learning_velocity', Marker, queue_size=10)
-        self.pub_marker_goal = rospy.Publisher("goal", Marker, queue_size=1)
+        self.pub_marker_goal = rospy.Publisher('goal_marker', Marker, queue_size=10)
 
         self.n_steps = 300                                      # Nr training steps per episode
         self.steps = 0                                          # Current amount of steps
 
-        # Modifying the attributes inherited from the gym.Env class [x, y, vel, phi, closest_particles_x, closest_particles_y]
-        self.observation_space = spaces.Box(low= np.array([-self.len_half,-self.len_half,-1, -np.pi,-2*self.len_half,-2*self.len_half]),
-                                            high=np.array([ self.len_half, self.len_half, 1, +np.pi, 2*self.len_half, 2*self.len_half]))
+        # Modifying the attributes inherited from the gym.Env class [x, y, vel, phi, closest_particles_x, closest_particles_y, goal_x, goal_y]
+        self.observation_space = spaces.Box(low= np.array([-1, -np.pi,-2*self.len_half,-2*self.len_half, -2*self.len_half,-2*self.len_half]),
+                                            high=np.array([ 1, +np.pi, 2*self.len_half, 2*self.len_half,  2*self.len_half, 2*self.len_half]))
         self.action_space = spaces.Box(low= np.array([-np.pi/10,-1]),
                                        high=np.array([ np.pi/10, 1]))
         self.reward = 0
@@ -154,9 +154,9 @@ class ParticleEnvRL(ParticleEnv):
         """
         self.calculate_distance_from_origin()
 
-        self.reward_distance_2_particle = 1/self.dist_2_closest
-        self.reward_distance_2_origin = 1/self.distance_from_origin
-        return self.reward_distance_2_origin + self.reward_distance_2_particle
+        self.punishment_distance_2_particle = -1/self.dist_2_closest
+        self.reward_distance_2_goal = 10/self.distance_from_goal
+        return self.reward_distance_2_goal + self.punishment_distance_2_particle
 
 
     def reset(self):
@@ -190,7 +190,7 @@ class ParticleEnvRL(ParticleEnv):
         """ Return the current state of the particle
         """
 
-        return [self.x, self.y, self.vel, self.phi, self.closest_particles_x, self.closest_particles_y]
+        return [self.vel, self.phi, self.closest_particles_x - self.x, self.closest_particles_y - self.y, self.goal_x - self.x, self.goal_y - self.y]
 
 
     # Update function
@@ -226,6 +226,8 @@ class ParticleEnvRL(ParticleEnv):
         self.y = self.y + self.vel*np.sin(self.phi)
 
         observation = self.get_observation()
+
+        self.calculate_distance_from_goal()
 
         self.reward = self.calculate_reward()
 
@@ -334,8 +336,8 @@ class ParticleEnvRL(ParticleEnv):
         marker_goal.color.r = 1.0
         marker_goal.color.g = 0.0
         marker_goal.color.b = 1.0
-        marker_goal.pose.position.x = self.goal_x
-        marker_goal.pose.position.y = self.goal_y
+        marker_goal.pose.position.x = float(self.goal_x)
+        marker_goal.pose.position.y = float(self.goal_y)
         marker_goal.pose.position.z = 0
         marker_goal.pose.orientation.x = 0
         marker_goal.pose.orientation.y = 0
@@ -343,4 +345,7 @@ class ParticleEnvRL(ParticleEnv):
         marker_goal.pose.orientation.w = 1
 
 
-        self..publish(marker_goal)
+        self.pub_marker_goal.publish(marker_goal)
+
+    def calculate_distance_from_goal(self):
+        self.distance_from_goal = np.linalg.norm([self.x - self.goal_x, self.y - self.goal_y])
