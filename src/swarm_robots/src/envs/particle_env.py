@@ -141,12 +141,9 @@ class ParticleEnvRL(ParticleEnv):
         self.n_steps = 300                                      # Nr training steps per episode
         self.steps = 0                                          # Current amount of steps
 
-        # Modifying the attributes inherited from the gym.Env class [x, y, vel, phi, closest_particles_x, closest_particles_y, goal_x, goal_y]
-        # self.observation_space = spaces.Box(low= np.array([-np.pi,-2*self.len_half,-2*self.len_half, -2*self.len_half,-2*self.len_half]),
-        #                                     high=np.array([+np.pi, 2*self.len_half, 2*self.len_half,  2*self.len_half, 2*self.len_half]))
-
-        self.observation_space = spaces.Box(low= np.array([-self.len_half,-self.len_half,-self.len_half,-self.len_half]),
-                                            high=np.array([ self.len_half, self.len_half, self.len_half, self.len_half]))
+        # [x, y, vel, phi, closest_particles_x, closest_particles_y, goal_x, goal_y, obstacle_x, obstacle_y]
+        self.observation_space = spaces.Box(low= np.array([-self.len_half,-self.len_half,-self.len_half,-self.len_half,-self.len_half,-self.len_half]),
+                                            high=np.array([ self.len_half, self.len_half, self.len_half, self.len_half, self.len_half, self.len_half]))
 
         self.action_space = spaces.Box(low= np.array([-5,-5]),
                                        high=np.array([ 5, 5]))
@@ -160,10 +157,8 @@ class ParticleEnvRL(ParticleEnv):
         """ Calculate reward for the current particle
         """
 
-        self.punishment_distance_2_particle = 0# = -1/self.dist_2_closest
+        self.punishment_distance_2_particle = -1 if self.dist_2_closest < 1 else -1/self.dist_2_closest
         self.reward_distance_2_goal = 10*(self.distance_from_goal_previous - self.distance_from_goal)/(self.distance_from_goal) if self.distance_from_goal > 1 else 10
-        # self.reward_reached_goal = 10 if self.distance_from_goal < 1 else 0
-        # print("Distance to goal reward: {}".format(self.reward_distance_2_goal))
 
         return self.reward_distance_2_goal + self.punishment_distance_2_particle
 
@@ -176,7 +171,6 @@ class ParticleEnvRL(ParticleEnv):
         self.y = random.uniform(-self.len_half, self.len_half)
         self.x_previous = self.x + random.uniform(-1,1)
         self.y_previous = self.y + random.uniform(-1,1)
-        # self.update_distances_to_particles()
         self.collision_path = False
         self.generate_goal()
         self.distance_from_goal_previous = self.distance_from_goal
@@ -199,11 +193,12 @@ class ParticleEnvRL(ParticleEnv):
 
 
     def get_observation(self):
-        """ Return the current state of the particle
+        """ Return the current state of the environment
+
+        [position particle (x,y), position goal (x,y), position closest particle (x,y)]
         """
 
-        # return [self.phi, self.closest_particles_x - self.x, self.closest_particles_y - self.y, self.goal_x - self.x, self.goal_y - self.y]
-        return [self.x, self.y, self.goal_x, self.goal_y]
+        return [self.x, self.y, self.goal_x, self.goal_y, self.closest_particles_x, self.closest_particles_y]
 
     # Update function
     def step(self, action):
@@ -215,28 +210,19 @@ class ParticleEnvRL(ParticleEnv):
         4. Calculate reward
         """
 
-        if self.steps > 0: self.x_previous, self.y_previous = self.x, self.y
+        self.x_previous, self.y_previous = self.x, self.y
 
         self.steps += 1
 
-        self.publish_position()
-
-
         action = np.clip(action, self.action_space.low, self.action_space.high)
-        
-        # # Bringing the angles in the right range
-        # if(self.phi <= -np.pi):
-        #     self.phi = self.phi + 2*np.pi
-        
-        # if(self.phi >= np.pi):
-        #     self.phi = self.phi - 2*np.pi
-
 
         self.x = self.x + action[0]
         self.y = self.y + action[1]
 
         self.phi = np.arctan2(self.y - self.y_previous, self.x - self.x_previous)
         self.vel = np.linalg.norm([self.x - self.x_previous, self.y - self.y_previous])
+
+        self.publish_position()
 
         observation = self.get_observation()
 
