@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
 
+import os
 import sys
 import numpy as np
 import random
@@ -12,21 +13,13 @@ import gym
 from gym import spaces
 
 from stable_baselines3 import PPO
-from typing import Callable
-
-# import rospkg
-# rospack = rospkg.RosPack()
-
-# # list all packages, equivalent to rospack list
-# rospack.list() 
-
-# # get the file path for rospy_tutorials
-# package_path = rospack.get_path('swarm_robots')
-
-
 from stable_baselines3.common.callbacks import BaseCallback
 
-sys.path.insert(1, '/home/giovanni/ROS_workspaces/RL_swarm/src/swarm_robots/src/envs')
+from typing import Callable
+
+# Adding path to particle class
+current_path = os.path.dirname(os.path.realpath(__file__))
+sys.path.insert(1, current_path+'/envs')
 from particle_env import ParticleEnvRL
 
 
@@ -92,11 +85,11 @@ if __name__ == '__main__':
     model = PPO(policy = 'MlpPolicy',
                 env = env,
                 verbose=1,
-                tensorboard_log= "/home/giovanni/ROS_workspaces/RL_swarm/src/swarm_robots/src/tensorboard/",
+                tensorboard_log= current_path+"/tensorboard/",
                 learning_rate = linear_schedule(0.001),
                 seed=1,
                 gamma=0.99)
 
 
     model.learn(total_timesteps=100000, callback = reward_callback)
-    model.save("/home/giovanni/ROS_workspaces/RL_swarm/src/swarm_robots/src/models")
+    model.save(current_path+"/models")
