@@ -11,10 +11,8 @@ from visualization_msgs.msg import MarkerArray
 import gym
 from gym import spaces
 
-from stable_baselines3 import DDPG
-from stable_baselines3.td3.policies import MlpPolicy
-
-from stable_baselines3.common.noise import OrnsteinUhlenbeckActionNoise
+from stable_baselines3 import PPO
+from typing import Callable
 
 # import rospkg
 # rospack = rospkg.RosPack()
@@ -51,6 +49,25 @@ class TensorboardCallback(BaseCallback):
 
 
 
+def linear_schedule(initial_value: float) -> Callable[[float], float]:
+    """
+    Linear learning rate schedule.
+
+    :param initial_value: Initial learning rate.
+    :return: schedule that computes
+      current learning rate depending on remaining progress
+    """
+    def func(progress_remaining: float) -> float:
+        """
+        Progress will decrease from 1 (beginning) to 0.
+
+        :param progress_remaining:
+        :return: current learning rate
+        """
+        return progress_remaining * initial_value
+
+    return func
+
 
 if __name__ == '__main__':
 
@@ -71,16 +88,13 @@ if __name__ == '__main__':
     #     actor_lr_i = hyperparameter["lr"]
     #     critic_lr_i = hyperparameter["network"]
 
-    n_actions = env.action_space.shape[-1]
-    action_noise = OrnsteinUhlenbeckActionNoise(mean=np.zeros(n_actions), sigma=float(0.5) * np.ones(n_actions))
 
-    model = DDPG(policy = 'MlpPolicy',
+    model = PPO(policy = 'MlpPolicy',
                 env = env,
                 verbose=1,
                 tensorboard_log= "/home/giovanni/ROS_workspaces/RL_swarm/src/swarm_robots/src/tensorboard/",
-                learning_rate = 0.001,
+                learning_rate = linear_schedule(0.001),
                 seed=1,
-                action_noise= action_noise,
                 gamma=0.99)
 
 
