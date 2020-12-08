@@ -29,17 +29,17 @@ class ParticleEnv(gym.Env):
 
 
         # Own attributes of the Particle class
-        self.x = random.randint(-self.len_half, self.len_half)  # Position x
-        self.y = random.randint(-self.len_half, self.len_half)  # Position y
-        self.phi = 0                                            # Heading angle
-        self.vel = 1                                            # Velocity along the heading angle
-        self.closest_particles_x = np.inf                       # Distance to closest particle along x
-        self.closest_particles_y = np.inf                       # Distance to closest particle along y
-        self.dist_2_closest = np.inf                            # Distance to the closest particle
-        self.collision_path = False                             # Whether a particle is in collision with another one
-        self.particle_id = particle_id #random.randint(1,1000)                        # Particle Id
-        self.goal_x = random.randint(-self.len_half, self.len_half)  # Position goal x
-        self.goal_y = random.randint(-self.len_half, self.len_half)  # Position goal y
+        self.x = 0                           # Position x
+        self.y = 0                           # Position y
+        self.phi = 0                         # Heading angle
+        self.vel = 1                         # Velocity along the heading angle
+        self.closest_particles_x = np.inf    # Distance to closest particle along x
+        self.closest_particles_y = np.inf    # Distance to closest particle along y
+        self.dist_2_closest = np.inf         # Distance to the closest particle
+        self.collision_path = False          # Whether a particle is in collision with another one
+        self.particle_id = particle_id       # Particle Id
+        self.goal_x = 0                      # Position goal x
+        self.goal_y = 0                      # Position goal y
 
 
 
@@ -142,20 +142,29 @@ class ParticleEnvRL(ParticleEnv):
         self.steps = 0                                          # Current amount of steps
 
         # Modifying the attributes inherited from the gym.Env class [x, y, vel, phi, closest_particles_x, closest_particles_y, goal_x, goal_y]
-        self.observation_space = spaces.Box(low= np.array([-1, -np.pi,-2*self.len_half,-2*self.len_half, -2*self.len_half,-2*self.len_half]),
-                                            high=np.array([ 1, +np.pi, 2*self.len_half, 2*self.len_half,  2*self.len_half, 2*self.len_half]))
-        self.action_space = spaces.Box(low= np.array([-np.pi/10,-1]),
-                                       high=np.array([ np.pi/10, 1]))
+        # self.observation_space = spaces.Box(low= np.array([-np.pi,-2*self.len_half,-2*self.len_half, -2*self.len_half,-2*self.len_half]),
+        #                                     high=np.array([+np.pi, 2*self.len_half, 2*self.len_half,  2*self.len_half, 2*self.len_half]))
+
+        self.observation_space = spaces.Box(low= np.array([-self.len_half,-self.len_half,-self.len_half,-self.len_half]),
+                                            high=np.array([ self.len_half, self.len_half, self.len_half, self.len_half]))
+
+        self.action_space = spaces.Box(low= np.array([-5,-5]),
+                                       high=np.array([ 5, 5]))
+        
+        self.distance_from_goal = 0
+        self.distance_from_goal_previous = 0
         self.reward = 0
 
 
     def calculate_reward(self):
         """ Calculate reward for the current particle
         """
-        self.calculate_distance_from_origin()
 
-        self.punishment_distance_2_particle = -1/self.dist_2_closest
-        self.reward_distance_2_goal = 10/self.distance_from_goal
+        self.punishment_distance_2_particle = 0# = -1/self.dist_2_closest
+        self.reward_distance_2_goal = 10*(self.distance_from_goal_previous - self.distance_from_goal)/(self.distance_from_goal) if self.distance_from_goal > 1 else 10
+        # self.reward_reached_goal = 10 if self.distance_from_goal < 1 else 0
+        # print("Distance to goal reward: {}".format(self.reward_distance_2_goal))
+
         return self.reward_distance_2_goal + self.punishment_distance_2_particle
 
 
@@ -165,11 +174,12 @@ class ParticleEnvRL(ParticleEnv):
         self.steps = 0
         self.x = random.uniform(-self.len_half, self.len_half)
         self.y = random.uniform(-self.len_half, self.len_half)
-        self.phi = 0
-        self.vel = 1
+        self.x_previous = self.x + random.uniform(-1,1)
+        self.y_previous = self.y + random.uniform(-1,1)
         # self.update_distances_to_particles()
         self.collision_path = False
         self.generate_goal()
+        self.distance_from_goal_previous = self.distance_from_goal
 
         return self.get_observation()
 
@@ -180,7 +190,9 @@ class ParticleEnvRL(ParticleEnv):
         Return true if the nr of steps is bigger thant the maximum allowed nr of steps per episode
         """
 
-        if(self.steps >= self.n_steps):
+
+        if self.distance_from_goal < 1 or self.steps >= self.n_steps:
+            if self.distance_from_goal < 1: print("Reached goal")
             return True
         else:
             return False
@@ -190,8 +202,8 @@ class ParticleEnvRL(ParticleEnv):
         """ Return the current state of the particle
         """
 
-        return [self.vel, self.phi, self.closest_particles_x - self.x, self.closest_particles_y - self.y, self.goal_x - self.x, self.goal_y - self.y]
-
+        # return [self.phi, self.closest_particles_x - self.x, self.closest_particles_y - self.y, self.goal_x - self.x, self.goal_y - self.y]
+        return [self.x, self.y, self.goal_x, self.goal_y]
 
     # Update function
     def step(self, action):
@@ -203,27 +215,28 @@ class ParticleEnvRL(ParticleEnv):
         4. Calculate reward
         """
 
-        # print(action)
+        if self.steps > 0: self.x_previous, self.y_previous = self.x, self.y
+
         self.steps += 1
 
         self.publish_position()
 
 
         action = np.clip(action, self.action_space.low, self.action_space.high)
-
-        self.phi = self.phi + action[0]
-        self.vel = action[1]
         
-        # Bringing the angles in the right range
-        if(self.phi < -np.pi):
-            self.phi = self.phi + 2*np.pi
+        # # Bringing the angles in the right range
+        # if(self.phi <= -np.pi):
+        #     self.phi = self.phi + 2*np.pi
         
-        if(self.phi > np.pi):
-            self.phi = self.phi - 2*np.pi
+        # if(self.phi >= np.pi):
+        #     self.phi = self.phi - 2*np.pi
 
 
-        self.x = self.x + self.vel*np.cos(self.phi)
-        self.y = self.y + self.vel*np.sin(self.phi)
+        self.x = self.x + action[0]
+        self.y = self.y + action[1]
+
+        self.phi = np.arctan2(self.y - self.y_previous, self.x - self.x_previous)
+        self.vel = np.linalg.norm([self.x - self.x_previous, self.y - self.y_previous])
 
         observation = self.get_observation()
 
@@ -347,5 +360,8 @@ class ParticleEnvRL(ParticleEnv):
 
         self.pub_marker_goal.publish(marker_goal)
 
+        self.calculate_distance_from_goal()
+
     def calculate_distance_from_goal(self):
+        self.distance_from_goal_previous = self.distance_from_goal
         self.distance_from_goal = np.linalg.norm([self.x - self.goal_x, self.y - self.goal_y])
