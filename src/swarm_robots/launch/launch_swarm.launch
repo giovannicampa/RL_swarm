@@ -1,7 +1,8 @@
 <launch>
 
+    <arg name="nr_particles" default="10"/>
 
-    <node name="swarm" type="simulation_envionment_particles.py" pkg="swarm_robots" output="screen"/>
+    <node name="swarm" type="simulation_envionment_particles.py" pkg="swarm_robots" output="screen" args="$(arg nr_particles)"/>
 
     <node name="training" type="train_agent.py" pkg="swarm_robots" output="screen"/>
 
