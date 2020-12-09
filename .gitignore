@@ -210,5 +210,6 @@ CATKIN_IGNORE
 .catkin_workspace
 
 .vscode
-
+src/swarm_robots/src/tensorboard
+src/swarm_robots/.directory
 # End of https://www.toptal.com/developers/gitignore/api/linux,ros,python
