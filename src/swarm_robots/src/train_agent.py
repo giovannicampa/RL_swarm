@@ -148,7 +148,8 @@ if __name__ == '__main__':
                     swarm_elements["envs"][i].goal_x = goal_x # Same goal for all particles
                     swarm_elements["envs"][i].goal_y = goal_y
 
-
+                swarm_elements["envs"][-1].publish_goal_marker()
+                
                 while not done:
                     for i, env in enumerate(swarm_elements["envs"]):
 
