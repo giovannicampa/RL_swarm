@@ -324,30 +324,7 @@ class ParticleEnvRL(ParticleEnv):
         self.goal_x = random.randint(-self.len_half, self.len_half)  # Position goal x
         self.goal_y = random.randint(-self.len_half, self.len_half)  # Position goal y
 
-
-        # Velocity marker
-        marker_goal = Marker()
-        marker_goal.header.frame_id = "world"
-        marker_goal.id = 999
-        marker_goal.type = marker_goal.SPHERE
-        marker_goal.action = marker_goal.ADD
-        marker_goal.scale.x = 10
-        marker_goal.scale.y = 10
-        marker_goal.scale.z = 10
-        marker_goal.color.a = 1.0
-        marker_goal.color.r = 1.0
-        marker_goal.color.g = 0.0
-        marker_goal.color.b = 1.0
-        marker_goal.pose.position.x = float(self.goal_x)
-        marker_goal.pose.position.y = float(self.goal_y)
-        marker_goal.pose.position.z = 0
-        marker_goal.pose.orientation.x = 0
-        marker_goal.pose.orientation.y = 0
-        marker_goal.pose.orientation.z = 0
-        marker_goal.pose.orientation.w = 1
-
-
-        self.pub_marker_goal.publish(marker_goal)
+        self.publish_goal_marker()
 
         self.calculate_distance_from_goal()
 
@@ -371,3 +348,30 @@ class ParticleEnvRL(ParticleEnv):
         delete_markers.action = delete_markers.DELETEALL
 
         self.pub_marker_position.publish(delete_markers)
+
+
+    def publish_goal_marker(self):
+        """ Publishes marker of goal
+        """
+
+        marker_goal = Marker()
+        marker_goal.header.frame_id = "world"
+        marker_goal.id = 999
+        marker_goal.type = marker_goal.SPHERE
+        marker_goal.action = marker_goal.ADD
+        marker_goal.scale.x = 10
+        marker_goal.scale.y = 10
+        marker_goal.scale.z = 10
+        marker_goal.color.a = 1.0
+        marker_goal.color.r = 1.0
+        marker_goal.color.g = 0.0
+        marker_goal.color.b = 1.0
+        marker_goal.pose.position.x = float(self.goal_x)
+        marker_goal.pose.position.y = float(self.goal_y)
+        marker_goal.pose.position.z = 0
+        marker_goal.pose.orientation.x = 0
+        marker_goal.pose.orientation.y = 0
+        marker_goal.pose.orientation.z = 0
+        marker_goal.pose.orientation.w = 1
+
+        self.pub_marker_goal.publish(marker_goal)
