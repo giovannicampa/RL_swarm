@@ -4,6 +4,7 @@ import os
 import sys
 import numpy as np
 import random
+import datetime
 
 import rospy
 from visualization_msgs.msg import Marker
@@ -86,17 +87,20 @@ if __name__ == '__main__':
                     tensorboard_log= current_path+"/tensorboard/",
                     learning_rate = linear_schedule(0.0001),
                     seed=1,
-                    gamma=0.97)
+                    gamma=0.9)
 
 
-        model.learn(total_timesteps=100000, callback = reward_callback)
-        model.save(current_path+"/models")
+        model.learn(total_timesteps=500000, callback = reward_callback)
+
+        now = datetime.datetime.now()
+        dt_string = now.strftime("%d/%m/%Y %H:%M:%S").strip(" ").replace("/", "_").replace(":", "_").replace(" ", "_")
+        model.save(current_path+"/models/model_"+dt_string)
 
 
     elif mode == "test":
         model = PPO.load(current_path+"/models/" + "models")
         env.test = True
-        
+
         for _ in range(100): # Test the trained agent 100 times
             obs = env.reset()
             done = False
