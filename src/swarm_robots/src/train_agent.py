@@ -23,6 +23,14 @@ sys.path.insert(1, current_path+'/envs')
 from particle_env import ParticleEnvRL
 
 
+# Getting input from the launch file
+try:
+    mode = sys.argv[1]
+except:
+    mode = "test"
+
+print(f"Loading in mode: {mode}")
+
 class TensorboardCallback(BaseCallback):
     """
     Custom callback for plotting rewards
@@ -68,28 +76,30 @@ if __name__ == '__main__':
     rospy.init_node('swarm_node', anonymous=True)
     env = gym.make('Particle-v0')
 
-    reward_callback=TensorboardCallback(env = env)
 
-    # grid_search_params = {  "gamma": [0.99, 0.97, 0.95],
-    #                         "lr": [0.001, 0.0001],
-    #                         "network": [[126, 126], [256, 256], [512, 512]]}
+    if mode == "train":
+        reward_callback=TensorboardCallback(env = env)
 
-
-    # for hyperparameter in hyperparameter_permutations:
-
-    #     gamma_i = hyperparameter["gamma"]
-    #     actor_lr_i = hyperparameter["lr"]
-    #     critic_lr_i = hyperparameter["network"]
-
-
-    model = PPO(policy = 'MlpPolicy',
-                env = env,
-                verbose=1,
-                tensorboard_log= current_path+"/tensorboard/",
-                learning_rate = linear_schedule(0.001),
-                seed=1,
-                gamma=0.99)
+        model = PPO(policy = 'MlpPolicy',
+                    env = env,
+                    verbose=1,
+                    tensorboard_log= current_path+"/tensorboard/",
+                    learning_rate = linear_schedule(0.0001),
+                    seed=1,
+                    gamma=0.97)
 
 
-    model.learn(total_timesteps=100000, callback = reward_callback)
-    model.save(current_path+"/models")
+        model.learn(total_timesteps=100000, callback = reward_callback)
+        model.save(current_path+"/models")
+
+
+    elif mode == "test":
+        model = PPO.load(current_path+"/models/" + "models")
+        env.test = True
+        
+        for _ in range(100): # Test the trained agent 100 times
+            obs = env.reset()
+            done = False
+            while not done:
+                action, _states = model.predict(obs)
+                obs, reward, done, info = env.step(action)
