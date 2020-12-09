@@ -151,13 +151,13 @@ class ParticleEnvRL(ParticleEnv):
         self.distance_from_goal = 0
         self.distance_from_goal_previous = 0
         self.reward = 0
-
+        self.test = False
 
     def calculate_reward(self):
         """ Calculate reward for the current particle
         """
 
-        self.punishment_distance_2_particle = -1 if self.dist_2_closest < 1 else -1/self.dist_2_closest
+        self.punishment_distance_2_particle = -5 if self.dist_2_closest < 1 else -5/self.dist_2_closest
         self.reward_distance_2_goal = 10*(self.distance_from_goal_previous - self.distance_from_goal)/(self.distance_from_goal) if self.distance_from_goal > 1 else 10
 
         return self.reward_distance_2_goal + self.punishment_distance_2_particle
@@ -234,7 +234,7 @@ class ParticleEnvRL(ParticleEnv):
 
         information = {"Finished":done}
 
-        # rospy.sleep(0.01)
+        if self.test: rospy.sleep(0.01)
 
         return observation, self.reward, done, information
 
