@@ -5,6 +5,8 @@ import sys
 import numpy as np
 import random
 import datetime
+from os import listdir
+from os.path import isfile, join
 
 import rospy
 from visualization_msgs.msg import Marker
@@ -103,7 +105,8 @@ if __name__ == '__main__':
 
         total_test_episodes = 100
 
-        model = PPO.load(current_path+"/models/" + "models")
+        model_files = [f for f in listdir(current_path+"/models") if isfile(join(current_path+"/models", f))]
+        model = PPO.load(current_path+"/models/" + model_files[0]) # Loading the most recently saved agent
         env.test = True
 
         for _ in range(total_test_episodes): # Test the trained agent
