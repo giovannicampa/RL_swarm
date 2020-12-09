@@ -20,9 +20,17 @@ pub_marker_velocity = rospy.Publisher('particles_velocity', MarkerArray, queue_s
 pub_poses = rospy.Publisher('particles_positions', PoseArray, queue_size=10)
 
 
+# Getting input from the launch file
+try:
+    nr_particles = int(sys.argv[1])
+    print(f"Nr input particles from launch file: {nr_particles}")
+except:
+    nr_particles = 10
+
+
 # Generate dumb particles
 particle_list = []
-for i in range(50):
+for i in range(nr_particles):
 
     p = ParticleEnv(particle_id = i)
 
@@ -121,11 +129,10 @@ def update_world():
         pub_marker.publish(marker_array)
         pub_marker_velocity.publish(velocity_marker_array)
         pub_poses.publish(pose_array)
-
+        rospy.sleep(0.01)
 
 
 # for each episode, we test the robot for nsteps
 while True:
     rospy.init_node('swarm_node', anonymous=True)
     update_world()
-    rospy.sleep(0.01)
