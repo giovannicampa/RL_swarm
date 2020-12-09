@@ -138,7 +138,7 @@ class ParticleEnvRL(ParticleEnv):
         self.pub_marker_velocity = rospy.Publisher('particle_learning_velocity', Marker, queue_size=10)
         self.pub_marker_goal = rospy.Publisher('goal_marker', Marker, queue_size=10)
 
-        self.n_steps = 300                                      # Nr training steps per episode
+        self.n_steps = 500                                      # Nr training steps per episode
         self.steps = 0                                          # Current amount of steps
 
         # [x, y, vel, phi, closest_particles_x, closest_particles_y, goal_x, goal_y, obstacle_x, obstacle_y]
@@ -157,8 +157,8 @@ class ParticleEnvRL(ParticleEnv):
         """ Calculate reward for the current particle
         """
 
-        self.punishment_distance_2_particle = -5 if self.dist_2_closest < 1 else -5/self.dist_2_closest
-        self.reward_distance_2_goal = 10*(self.distance_from_goal_previous - self.distance_from_goal)/(self.distance_from_goal) if self.distance_from_goal > 1 else 10
+        self.punishment_distance_2_particle = -5 if self.dist_2_closest < 5 else -5/self.dist_2_closest
+        self.reward_distance_2_goal = 10*(self.distance_from_goal_previous - self.distance_from_goal)/(self.distance_from_goal) if self.distance_from_goal > 1 else 200
 
         return self.reward_distance_2_goal + self.punishment_distance_2_particle
 
@@ -174,6 +174,8 @@ class ParticleEnvRL(ParticleEnv):
         self.collision_path = False
         self.generate_goal()
         self.distance_from_goal_previous = self.distance_from_goal
+
+        self.delete_markers()
 
         return self.get_observation()
 
@@ -265,7 +267,7 @@ class ParticleEnvRL(ParticleEnv):
         # Position marker
         marker_position = Marker()
         marker_position.header.frame_id = "world"
-        marker_position.id = 999
+        marker_position.id = int(self.steps)
         marker_position.type = marker_position.SPHERE
         marker_position.action = marker_position.ADD
         marker_position.scale.x = 4
@@ -348,6 +350,23 @@ class ParticleEnvRL(ParticleEnv):
 
         self.calculate_distance_from_goal()
 
+
     def calculate_distance_from_goal(self):
+        """ Calculate the distance of the particle from the current goal
+        """
+
         self.distance_from_goal_previous = self.distance_from_goal
         self.distance_from_goal = np.linalg.norm([self.x - self.goal_x, self.y - self.goal_y])
+
+
+    def delete_markers(self):
+        """ Delete markers of the path of the current episode
+        """
+
+        # Position marker
+        delete_markers = Marker()
+        delete_markers.header.frame_id = "world"
+        delete_markers.id = 0
+        delete_markers.action = delete_markers.DELETEALL
+
+        self.pub_marker_position.publish(delete_markers)
