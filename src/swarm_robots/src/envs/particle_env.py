@@ -132,7 +132,7 @@ class ParticleEnvRL(ParticleEnv):
 
         super(ParticleEnvRL, self).__init__()
         
-        self.subscriber = rospy.Subscriber("/particles_positions", PoseArray, self.update_distances_to_particles)
+        self.subscriber = rospy.Subscriber("/particles_positions", PoseArray, self.update_distances_to_particles, queue_size= 10)
     
         self.pub_marker_position = rospy.Publisher('particle_learning_marker', Marker, queue_size=10)
         self.pub_marker_velocity = rospy.Publisher('particle_learning_velocity', Marker, queue_size=10)
@@ -166,6 +166,8 @@ class ParticleEnvRL(ParticleEnv):
     def reset(self):
         """ Reset the states of the particle
         """
+        rospy.wait_for_message("/particles_positions", PoseArray) # Necessary to correctly initiate ditance to closes particle
+
         self.steps = 0
         self.x = random.uniform(-self.len_half, self.len_half)
         self.y = random.uniform(-self.len_half, self.len_half)
@@ -236,7 +238,6 @@ class ParticleEnvRL(ParticleEnv):
 
         information = {"Finished":done}
 
-        if self.test: rospy.sleep(0.01)
 
         return observation, self.reward, done, information
 
@@ -267,7 +268,7 @@ class ParticleEnvRL(ParticleEnv):
         # Position marker
         marker_position = Marker()
         marker_position.header.frame_id = "world"
-        marker_position.id = int(self.steps)
+        marker_position.id = int(self.particle_id*1000 + self.steps) # Necessary so that the markers for the previous steps are not overwritten
         marker_position.type = marker_position.SPHERE
         marker_position.action = marker_position.ADD
         marker_position.scale.x = 4
@@ -293,7 +294,7 @@ class ParticleEnvRL(ParticleEnv):
         # Velocity marker
         marker_velocity = Marker()
         marker_velocity.header.frame_id = "world"
-        marker_velocity.id = 999
+        marker_velocity.id = 999 # This way the velocity markers will be deleted at every timestep
         marker_velocity.type = marker_velocity.ARROW
         marker_velocity.action = marker_velocity.ADD
         marker_velocity.scale.x = self.vel*10
