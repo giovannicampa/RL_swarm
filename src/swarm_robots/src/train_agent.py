@@ -15,8 +15,10 @@ from visualization_msgs.msg import MarkerArray
 import gym
 from gym import spaces
 
-from stable_baselines3 import PPO
+from stable_baselines3 import PPO, A2C
 from stable_baselines3.common.callbacks import BaseCallback
+
+from stable_baselines3.common.sb2_compat.rmsprop_tf_like import RMSpropTFLike
 
 from typing import Callable
 
@@ -55,9 +57,10 @@ class TensorboardCallback(BaseCallback):
 
     def _on_step(self) -> bool:
         # Log scalar value (here a random variable)
-        self.logger.record('reward', self.env.reward)
-        self.logger.record('reward dist 2 goal', self.env.reward_distance_2_goal)
-        self.logger.record('reward dist 2 particle', self.env.punishment_distance_2_particle)
+        self.logger.record('reward/total', self.env.reward)
+        self.logger.record('reward/distance 2 goal', self.env.reward_distance_2_goal)
+        self.logger.record('reward/distance 2 particle', self.env.punishment_distance_2_particle)
+        self.logger.record('metrics/efficiency of action', self.env.efficiency_action)
         return True
 
 
@@ -92,19 +95,20 @@ if __name__ == '__main__':
     if mode == "train":
         reward_callback=TensorboardCallback(env = env)
 
-        model = PPO(policy = 'MlpPolicy',
-                    env = env,
-                    verbose=1,
-                    tensorboard_log= current_path+"/tensorboard/",
-                    learning_rate = linear_schedule(0.00001),
-                    seed=1,
-                    gamma=0.9)
-
-
-        model.learn(total_timesteps=500000, callback = reward_callback)
-
+        gamma = 0.9
+        env.gamma = gamma
         now = datetime.datetime.now()
-        dt_string = now.strftime("%d/%m/%Y %H:%M:%S").strip(" ").replace("/", "_").replace(":", "_").replace(" ", "_")
+        dt_string = now.strftime("%d/%m/%Y %H:%M:%S").strip(" ").replace("/", "_").replace(":", "_").replace(" ", "_") + "_gam_" + str(gamma)
+
+        model = A2C(policy = 'MlpPolicy',
+                    env = env,
+                    verbose=0,
+                    tensorboard_log= current_path+"/tensorboard/log_"+ dt_string,
+                    learning_rate = linear_schedule(0.0001),
+                    seed=1,
+                    gamma=gamma)
+
+        model.learn(total_timesteps=1000000, callback = reward_callback)
         model.save(current_path+"/models/model_"+dt_string)
 
 
@@ -125,7 +129,7 @@ if __name__ == '__main__':
                 while not done:
                     action, _states = model.predict(obs)
                     obs, reward, done, info = env.step(action)
-
+                    rospy.sleep(0.01)
 
             # In case multiple particles will act according to the trained rl model
             else:
@@ -149,7 +153,7 @@ if __name__ == '__main__':
                     swarm_elements["envs"][i].goal_y = goal_y
 
                 swarm_elements["envs"][-1].publish_goal_marker()
-                
+
                 while not done:
                     for i, env in enumerate(swarm_elements["envs"]):
 
