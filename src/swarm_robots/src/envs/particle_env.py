@@ -40,7 +40,7 @@ class ParticleEnv(gym.Env):
         self.particle_id = particle_id       # Particle Id
         self.goal_x = 0                      # Position goal x
         self.goal_y = 0                      # Position goal y
-
+        self.efficiency_action = 0           # (distance to goal before - now) / (travelled distance)
 
 
 
@@ -152,13 +152,30 @@ class ParticleEnvRL(ParticleEnv):
         self.distance_from_goal_previous = 0
         self.reward = 0
         self.test = False
+        self.arrived_2_goal_distance = 4
 
     def calculate_reward(self):
         """ Calculate reward for the current particle
         """
 
-        self.punishment_distance_2_particle = -5 if self.dist_2_closest < 5 else -5/self.dist_2_closest
-        self.reward_distance_2_goal = 10*(self.distance_from_goal_previous - self.distance_from_goal)/(self.distance_from_goal) if self.distance_from_goal > 1 else 200
+        # # Collision
+        # if self.dist_2_closest < 1:
+        #     self.punishment_distance_2_particle = 10*self.dist_2_closest**2 -20
+        
+        # # Proximity
+        # elif self.dist_2_closest < 20:
+        #     self.punishment_distance_2_particle = -10/self.dist_2_closest
+
+        # # High distance
+        # else:
+        #     self.punishment_distance_2_particle = 0
+
+        self.punishment_distance_2_particle = 0
+
+        if self.distance_from_goal > self.arrived_2_goal_distance:
+            self.reward_distance_2_goal = (self.distance_from_goal_previous - self.distance_from_goal)
+        else:
+            self.reward_distance_2_goal = 50
 
         return self.reward_distance_2_goal + self.punishment_distance_2_particle
 
@@ -188,9 +205,7 @@ class ParticleEnvRL(ParticleEnv):
         Return true if the nr of steps is bigger thant the maximum allowed nr of steps per episode
         """
 
-
-        if self.distance_from_goal < 1 or self.steps >= self.n_steps:
-            if self.distance_from_goal < 1: print("Reached goal")
+        if self.distance_from_goal < self.arrived_2_goal_distance or self.steps >= self.n_steps:
             return True
         else:
             return False
@@ -231,6 +246,8 @@ class ParticleEnvRL(ParticleEnv):
         observation = self.get_observation()
 
         self.calculate_distance_from_goal()
+
+        self.efficiency_action = (self.distance_from_goal_previous - self.distance_from_goal)*np.linalg.norm([self.x - self.x_previous, self.y - self.y_previous])
 
         self.reward = self.calculate_reward()
 
