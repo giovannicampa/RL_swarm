@@ -91,14 +91,14 @@ if __name__ == '__main__':
     rospy.init_node('swarm_node', anonymous=True)
     env = gym.make('Particle-v0')
 
+    reward_callback=TensorboardCallback(env = env)
+    gamma = 0.9
+    env.gamma = gamma
+    now = datetime.datetime.now()
+    dt_string = now.strftime("%d/%m/%Y %H:%M:%S").strip(" ").replace("/", "_").replace(":", "_").replace(" ", "_") + "_gam_" + str(gamma)
+
 
     if mode == "train":
-        reward_callback=TensorboardCallback(env = env)
-
-        gamma = 0.9
-        env.gamma = gamma
-        now = datetime.datetime.now()
-        dt_string = now.strftime("%d/%m/%Y %H:%M:%S").strip(" ").replace("/", "_").replace(":", "_").replace(" ", "_") + "_gam_" + str(gamma)
 
         model = A2C(policy = 'MlpPolicy',
                     env = env,
@@ -112,12 +112,21 @@ if __name__ == '__main__':
         model.save(current_path+"/models/model_"+dt_string)
 
 
+    elif mode == "train_on_pretrained":
+
+        # Loading pre-trained agent
+        model_files = [f for f in listdir(current_path+"/models") if isfile(join(current_path+"/models", f))]
+        model_pre_trained = A2C.load(current_path+"/models/" + model_files[0]) # Loading the most recently saved agent
+        model_pre_trained.set_env(env = env)
+        model_pre_trained.learn(total_timesteps=1000000, callback = reward_callback)
+
+
     elif mode == "test":
 
         total_test_episodes = 100
 
         model_files = [f for f in listdir(current_path+"/models") if isfile(join(current_path+"/models", f))]
-        model = PPO.load(current_path+"/models/" + model_files[0]) # Loading the most recently saved agent
+        model = A2C.load(current_path+"/models/" + model_files[0]) # Loading the most recently saved agent
         env.test = True
 
         for _ in range(total_test_episodes): # Test the trained
@@ -129,7 +138,7 @@ if __name__ == '__main__':
                 while not done:
                     action, _states = model.predict(obs)
                     obs, reward, done, info = env.step(action)
-                    rospy.sleep(0.01)
+                    rospy.sleep(0.05)
 
             # In case multiple particles will act according to the trained rl model
             else:
@@ -161,4 +170,4 @@ if __name__ == '__main__':
                         obs, reward, done, info = env.step(action)
                         swarm_elements["obs"][i] = obs
 
-                    rospy.sleep(0.01)
+                    rospy.sleep(0.1)
