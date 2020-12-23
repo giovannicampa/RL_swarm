@@ -137,6 +137,7 @@ class ParticleEnvRL(ParticleEnv):
         self.pub_marker_position = rospy.Publisher('particle_learning_marker', Marker, queue_size=10)
         self.pub_marker_velocity = rospy.Publisher('particle_learning_velocity', Marker, queue_size=10)
         self.pub_marker_goal = rospy.Publisher('goal_marker', Marker, queue_size=10)
+        self.pub_marker_closest = rospy.Publisher('closest_particle', Marker, queue_size=10)
 
         self.n_steps = 500                                      # Nr training steps per episode
         self.steps = 0                                          # Current amount of steps
@@ -153,25 +154,28 @@ class ParticleEnvRL(ParticleEnv):
         self.reward = 0
         self.test = False
         self.arrived_2_goal_distance = 4
+        self.dist_2_closest_previous = np.inf
 
     def calculate_reward(self):
         """ Calculate reward for the current particle
         """
 
-        # # Collision
-        # if self.dist_2_closest < 1:
-        #     self.punishment_distance_2_particle = 10*self.dist_2_closest**2 -20
-        
-        # # Proximity
-        # elif self.dist_2_closest < 20:
-        #     self.punishment_distance_2_particle = -10/self.dist_2_closest
+        # Collision
+        if self.dist_2_closest < 40:
+            # self.punishment_distance_2_particle = -(self.dist_2_closest_previous - self.dist_2_closest)
+            self.publish_closest_particle_marker()
+        self.punishment_distance_2_particle = -200/self.dist_2_closest
 
-        # # High distance
+
+        # elif self.dist_2_closest < 20:
+        #     self.punishment_distance_2_particle = -0
+        #     self.publish_closest_particle_marker()
+        # High distance
         # else:
         #     self.punishment_distance_2_particle = 0
 
-        self.punishment_distance_2_particle = 0
 
+        # Movement towards goal
         if self.distance_from_goal > self.arrived_2_goal_distance:
             self.reward_distance_2_goal = (self.distance_from_goal_previous - self.distance_from_goal)
         else:
@@ -264,6 +268,8 @@ class ParticleEnvRL(ParticleEnv):
 
         Iterates over all particles and finds the closest one to the current particle
         """
+        
+        self.dist_2_closest_previous = self.dist_2_closest
         distance = np.inf
 
         for particle in msg.poses:
@@ -365,6 +371,7 @@ class ParticleEnvRL(ParticleEnv):
         delete_markers.action = delete_markers.DELETEALL
 
         self.pub_marker_position.publish(delete_markers)
+        self.pub_marker_closest.publish(delete_markers)
 
 
     def publish_goal_marker(self):
@@ -392,3 +399,33 @@ class ParticleEnvRL(ParticleEnv):
         marker_goal.pose.orientation.w = 1
 
         self.pub_marker_goal.publish(marker_goal)
+
+
+    def publish_closest_particle_marker(self):
+        """ Publishes a marker of the closest marker at the current step
+        
+        This helps visualising what particles have been avoided
+        """
+
+        marker_closest = Marker()
+
+        marker_closest.header.frame_id = "world"
+        marker_closest.id = self.steps
+        marker_closest.type = marker_closest.SPHERE
+        marker_closest.action = marker_closest.ADD
+        marker_closest.scale.x = 4
+        marker_closest.scale.y = 4
+        marker_closest.scale.z = 4
+        marker_closest.color.r = 0.0
+        marker_closest.color.g = 1.0
+        marker_closest.color.b = 0.0
+        marker_closest.color.a = 0.7
+        marker_closest.pose.position.x = self.closest_particles_x
+        marker_closest.pose.position.y = self.closest_particles_y
+        marker_closest.pose.position.z = 0
+        marker_closest.pose.orientation.x = 0
+        marker_closest.pose.orientation.y = 0
+        marker_closest.pose.orientation.z = 0
+        marker_closest.pose.orientation.w = 1
+
+        self.pub_marker_closest.publish(marker_closest)
